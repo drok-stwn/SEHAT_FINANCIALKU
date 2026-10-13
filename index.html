@@ -129,6 +129,24 @@ section{display:grid;gap:14px}
 .del{display:block;margin-left:auto;background:none;border:0;color:var(--ink2);font-size:12px;text-decoration:underline;cursor:pointer;padding:4px 0}
 .empty{text-align:center;color:var(--ink2);padding:28px 8px}
 
+/* struk */
+.upl{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
+.upl .pick{display:inline-flex;align-items:center;gap:8px;padding:12px 16px;border:1.5px dashed #9bb6bf;border-radius:12px;background:#f4f9fa;font-weight:600;cursor:pointer;min-height:48px;color:var(--brand)}
+.upl input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.upl .hint{font-size:12.5px;color:var(--ink2)}
+.prev{display:grid;grid-template-columns:72px 1fr auto;gap:12px;align-items:center;margin-top:10px;padding:8px;border-radius:12px;background:#f1f6f8}
+.prev img{width:72px;height:72px;object-fit:cover;border-radius:9px;background:#dfe9ed}
+.prev .nm{font-size:13px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prev button{background:none;border:0;color:var(--warn);font-weight:600;font-size:13px;cursor:pointer;padding:8px}
+.strukbtn{display:inline-flex;align-items:center;gap:5px;margin-top:5px;padding:4px 10px;border-radius:99px;border:1px solid #bcd3da;background:#eef6f8;color:var(--brand);font-size:12.5px;font-weight:600;cursor:pointer}
+#viewer{position:fixed;inset:0;background:#06161bee;z-index:20;display:flex;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+#viewer .vbar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 16px;color:#fff}
+#viewer .vbar b{font-family:var(--head);font-size:16px}
+#viewer .vbar button{border:1px solid #ffffff55;background:#ffffff1a;color:#fff;border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer}
+#viewer .vbody{flex:1;overflow:auto;display:grid;place-items:start center;padding:0 12px 16px}
+#viewer img{max-width:100%;height:auto;border-radius:10px;background:#fff}
+#viewer .msg{color:#cfe0e5;padding:40px 12px;text-align:center}
+
 /* nav */
 nav{position:fixed;left:0;right:0;bottom:0;background:#ffffffee;backdrop-filter:blur(10px);border-top:1px solid var(--line);z-index:5;
   padding:6px 10px calc(6px + env(safe-area-inset-bottom))}
@@ -229,6 +247,19 @@ nav button[aria-current=page]{color:var(--brand);background:#e3eef2}
           </div>
           <div><label for="fKet">Keterangan</label>
             <input id="fKet" type="text" maxlength="80" placeholder="Contoh: belanja bulanan"></div>
+          <div id="strukWrap">
+            <label>Foto struk / bukti belanja (opsional)</label>
+            <div class="upl">
+              <label class="pick" for="fStruk" style="margin:0"><span aria-hidden="true">📷</span>Ambil / pilih foto</label>
+              <span class="hint">Foto kamera atau galeri, otomatis dikecilkan</span>
+              <input type="file" id="fStruk" accept="image/*">
+            </div>
+            <div class="prev hidden" id="prev">
+              <img id="prevImg" alt="Pratinjau struk">
+              <div class="nm" id="prevNm"></div>
+              <button type="button" id="prevDel">Hapus</button>
+            </div>
+          </div>
           <button class="btn" id="btnSave">Simpan</button>
           <div class="err" id="formErr" role="alert" style="margin-top:-6px"></div>
         </div>
@@ -251,6 +282,10 @@ nav button[aria-current=page]{color:var(--brand);background:#e3eef2}
     <button data-tab="catat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Catat</button>
     <button data-tab="riwayat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>Riwayat</button>
   </div></nav>
+</div>
+<div id="viewer" class="hidden" role="dialog" aria-label="Foto struk">
+  <div class="vbar"><b id="vTitle">Struk</b><button id="vClose">Tutup</button></div>
+  <div class="vbody" id="vBody"></div>
 </div>
 <div id="toast" class="hidden" role="status"></div>
 
@@ -410,7 +445,8 @@ function renderHistory(inn, out){
     html += `<div class="item">
       <div class="ico" style="background:${r.t==='in' ? '#dff3e9' : (p ? p.bg : '#eee')}">${r.t==='in' ? '💰' : (p ? p.e : '🧾')}</div>
       <div><b class="t">${esc(r.Keterangan) || (r.t==='in' ? 'Pemasukan' : esc(r.Pos))}</b>
-        <span class="muted">${esc(String(r.Oleh).split(' ')[0])}${r.t==='out' ? ' · ' + esc(r.Pos) : ''}${pending ? ' · menyimpan…' : ''}</span></div>
+        <span class="muted">${esc(String(r.Oleh).split(' ')[0])}${r.t==='out' ? ' · ' + esc(r.Pos) : ''}${pending ? ' · menyimpan…' : ''}</span>
+        ${r.t==='out' && r.Struk ? `<div><button class="strukbtn" data-struk="${esc(r.Struk)}" data-title="${esc(r.Keterangan || r.Pos)}">🧾 Lihat struk</button></div>` : ''}</div>
       <div><div class="amt ${r.t==='in'?'in':''}">${r.t==='in'?'+':'−'} ${rp(r.Jumlah)}</div>
         ${pending ? '' : `<button class="del" data-t="${r.t}" data-id="${esc(r.ID)}">Hapus</button>`}</div>
     </div>`;
@@ -428,6 +464,8 @@ $('#chips').onclick = e => {
 
 /* hapus: langsung hilang, server menyusul */
 $('#history').onclick = async e => {
+  const s = e.target.closest('.strukbtn');
+  if(s){ openStruk(s.dataset.struk, s.dataset.title); return; }
   const b = e.target.closest('.del'); if(!b) return;
   if(!confirm('Hapus catatan ini?')) return;
   const key = b.dataset.t === 'in' ? 'pemasukan' : 'pengeluaran';
@@ -459,10 +497,62 @@ function setMode(m){
   $('#segOut').setAttribute('aria-selected', m==='out'); $('#segIn').setAttribute('aria-selected', m==='in');
   $('#formTitle').textContent = m==='out' ? 'Catat pengeluaran' : 'Catat pemasukan';
   $('#posWrap').classList.toggle('hidden', m==='in');
+  $('#strukWrap').classList.toggle('hidden', m==='in');
   $('#fKet').placeholder = m==='out' ? 'Contoh: belanja bulanan' : 'Contoh: gaji bulan ini';
 }
 $('#segOut').onclick = () => setMode('out'); $('#segIn').onclick = () => setMode('in');
 $('#fJumlah').oninput = e => { const d = e.target.value.replace(/\D/g,''); e.target.value = d ? Number(d).toLocaleString('id-ID') : ''; };
+
+/* ================= FOTO STRUK ================= */
+const fotoCache = {};   // id struk -> data URL (agar tidak diunduh ulang)
+let fotoData = '';      // foto yang sedang dipilih di form
+
+function compress(file, maxSide = 1600, q = 0.72){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); resolve(c.toDataURL('image/jpeg', q));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Foto tidak bisa dibaca')); };
+    img.src = url;
+  });
+}
+function clearFoto(){
+  fotoData = ''; $('#fStruk').value = '';
+  $('#prev').classList.add('hidden'); $('#prevImg').removeAttribute('src');
+}
+$('#fStruk').onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  $('#formErr').textContent = '';
+  try{
+    fotoData = await compress(f);
+    $('#prevImg').src = fotoData;
+    $('#prevNm').textContent = 'Foto struk siap diunggah (' + Math.round(fotoData.length * 0.75 / 1024) + ' KB)';
+    $('#prev').classList.remove('hidden');
+  }catch(err){ clearFoto(); $('#formErr').textContent = 'Foto tidak bisa dibaca. Coba foto lain.'; }
+};
+$('#prevDel').onclick = clearFoto;
+
+async function openStruk(id, title){
+  $('#vTitle').textContent = 'Struk · ' + (title || '');
+  $('#viewer').classList.remove('hidden');
+  const body = $('#vBody');
+  if(fotoCache[id]){ body.innerHTML = `<img src="${fotoCache[id]}" alt="Foto struk">`; return; }
+  body.innerHTML = '<div class="msg">Memuat foto…</div>';
+  try{
+    const res = await api({action:'foto', role, pin, id});
+    if(!res.ok) throw new Error(res.error);
+    fotoCache[id] = res.data;
+    if(!$('#viewer').classList.contains('hidden')) body.innerHTML = `<img src="${res.data}" alt="Foto struk">`;
+  }catch(err){ body.innerHTML = '<div class="msg">Foto belum bisa dimuat. Coba lagi sebentar lagi.</div>'; }
+}
+$('#vClose').onclick = () => $('#viewer').classList.add('hidden');
+document.addEventListener('keydown', e => { if(e.key === 'Escape') $('#viewer').classList.add('hidden'); });
 
 /* simpan: langsung tampil, server menyusul di latar belakang */
 $('#btnSave').onclick = () => {
@@ -476,17 +566,19 @@ $('#btnSave').onclick = () => {
   const ket = $('#fKet').value.trim(), pos = $('#fPos').value;
   const tmp = 'tmp' + Date.now() + Math.random().toString(36).slice(2,5);
   const row = { ID:tmp, Tanggal:tanggal, Oleh:nama || (role==='suami' ? 'Hendrik Setiawan' : 'Noor Loppa'), Keterangan:ket, Jumlah:jumlah };
-  if(key === 'pengeluaran') row.Pos = pos;
+  const foto = key === 'pengeluaran' ? fotoData : '';
+  if(key === 'pengeluaran'){ row.Pos = pos; row.Struk = foto ? tmp : ''; if(foto) fotoCache[tmp] = foto; }
 
   data[key].push(row); mutV++; saveCache();
   $('#month').value = tanggal.slice(0,7);
-  $('#fKet').value = ''; $('#fJumlah').value = '';
-  render(); toast('Tersimpan ✓');
+  $('#fKet').value = ''; $('#fJumlah').value = ''; clearFoto();
+  render(); toast(foto ? 'Tersimpan, foto diunggah ✓' : 'Tersimpan ✓');
 
-  post({action:'add', sheet:key, tanggal, jumlah, keterangan:ket, pos})
+  post({action:'add', sheet:key, tanggal, jumlah, keterangan:ket, pos, foto})
     .then(res => {
       if(!res.ok) throw new Error(res.error || 'gagal');
-      const r = data[key].find(x => x.ID === tmp); if(r) r.ID = res.id;
+      const r = data[key].find(x => x.ID === tmp);
+      if(r){ r.ID = res.id; if(foto){ r.Struk = res.struk || ''; if(res.struk) fotoCache[res.struk] = foto; } }
       saveCache(); render();
     })
     .catch(() => {
