@@ -50,6 +50,9 @@ header{background:linear-gradient(160deg,var(--brand) 0%,#14596c 100%);color:#ff
 .top small{color:#a9cbd5;font-size:13px}
 .top h1{font-size:25px;margin-top:2px}
 .today{margin-top:6px;display:inline-flex;align-items:center;gap:8px;background:#ffffff1c;border-radius:99px;padding:6px 12px;font-size:13.5px;font-weight:600}
+.today{flex-wrap:wrap}
+.today .sep{width:1px;height:14px;background:#ffffff59}
+.today .clock{font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .iconbtn{width:42px;height:42px;border-radius:12px;border:1px solid #ffffff40;background:#ffffff14;color:#fff;display:grid;place-items:center;cursor:pointer;flex:none}
 .monthrow{margin-top:16px;display:flex;align-items:center;gap:10px}
 .monthrow span{font-size:13px;color:#a9cbd5}
@@ -75,13 +78,14 @@ section{display:grid;gap:14px}
 .stat.neg b{color:var(--warn)}
 
 /* donut */
-.dn{display:grid;grid-template-columns:150px 1fr;gap:18px;align-items:center}
-.donut{position:relative;width:150px;height:150px}
-.donut svg{width:100%;height:100%;transform:rotate(-90deg)}
-.donut circle{fill:none;stroke-width:5}
-.donut .mid{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
-.donut .mid span{font-size:11.5px;color:var(--ink2)}
-.donut .mid b{font-family:var(--head);font-size:15px;line-height:1.15}
+.dn{display:grid;grid-template-columns:168px 1fr;gap:20px;align-items:center}
+.donut{position:relative;width:168px;height:168px;border-radius:50%;filter:drop-shadow(0 8px 10px #0f3d4a26)}
+.donut svg{width:100%;height:100%;display:block;overflow:visible}
+.donut .arc{fill:none;stroke-width:4.6}
+.donut .track{fill:none;stroke:#e7eff2;stroke-width:4.6}
+.donut .mid{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:0 30px}
+.donut .mid span{font-size:11.5px;color:var(--ink2);font-weight:500}
+.donut .mid b{font-family:var(--head);font-size:15px;line-height:1.2;font-weight:800;white-space:nowrap}
 .legend{display:grid;gap:9px}
 .legend div{display:flex;align-items:center;gap:9px;font-size:14px}
 .legend i{width:11px;height:11px;border-radius:4px;flex:none}
@@ -166,7 +170,7 @@ nav button[aria-current=page]{color:var(--brand);background:#e3eef2}
         <div>
           <small id="sub">Kepala rumah tangga: Hendrik Setiawan</small>
           <h1 id="hello">Halo</h1>
-          <div class="today"><span aria-hidden="true">📅</span><span id="today"></span></div>
+          <div class="today"><span aria-hidden="true">📅</span><span id="today"></span><span class="sep" aria-hidden="true"></span><span id="clock" class="clock"></span></div>
         </div>
         <button class="iconbtn" id="btnLogout" aria-label="Keluar" title="Keluar">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
@@ -196,7 +200,7 @@ nav button[aria-current=page]{color:var(--brand);background:#e3eef2}
         <div class="card">
           <h2>Pembagian gaji</h2>
           <div class="dn">
-            <div class="donut"><svg viewBox="0 0 36 36" id="donut"></svg>
+            <div class="donut"><svg viewBox="0 0 40 40" id="donut" aria-hidden="true"></svg>
               <div class="mid"><span>Alokasi</span><b id="donutTotal">Rp 0</b></div></div>
             <div class="legend" id="legend"></div>
           </div>
@@ -328,9 +332,11 @@ function showApp(){
 }
 
 function renderToday(){
-  $('#today').textContent = new Date().toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  const d = new Date();
+  $('#today').textContent = d.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  $('#clock').textContent = d.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false}).replace(/\./g, ':');
 }
-setInterval(renderToday, 30000);
+setInterval(renderToday, 1000);
 
 /* refresh senyap tiap 1 menit */
 async function refresh(){
@@ -362,11 +368,12 @@ function render(){
   $('#sisaBox').classList.toggle('neg', sisa < 0);
   $('#donutTotal').textContent = rp(total);
 
-  let cum = 0;
-  $('#donut').innerHTML = '<circle cx="18" cy="18" r="15.9155" stroke="#e7eff2"/>' + POS.map(p => {
-    const len = Math.max(p.p*100 - 1.2, 0.1), off = 25 - cum; cum += p.p*100;
-    return `<circle cx="18" cy="18" r="15.9155" stroke="${p.c}" stroke-dasharray="${len} ${100-len}" stroke-dashoffset="${off}"/>`;
-  }).join('');
+  let cum = 0; const GAP = 1.8;
+  $('#donut').innerHTML = '<g transform="rotate(-90 20 20)"><circle class="track" cx="20" cy="20" r="16" pathLength="100"/>' +
+    POS.map(p => {
+      const len = p.p*100 - GAP, off = -(cum + GAP/2); cum += p.p*100;
+      return `<circle class="arc" cx="20" cy="20" r="16" pathLength="100" stroke="${p.c}" stroke-dasharray="${len} ${100-len}" stroke-dashoffset="${off}"/>`;
+    }).join('') + '</g>';
   $('#legend').innerHTML = POS.map(p => `<div><i style="background:${p.c}"></i>${p.k}<em>${p.p*100}%</em></div>`).join('');
 
   $('#posList').innerHTML = POS.map(p => {
