@@ -291,7 +291,7 @@ nav button[aria-current=page]{color:var(--brand);background:#e3eef2}
 
 <script>
 /* ====== PENGATURAN: tempel URL Web App dari Apps Script di sini ====== */
-const API_URL = 'https://script.google.com/macros/s/AKfycbxbs0txasgTrYS6xCG8DFdFHKRrDfuhBytLfHWqI9Ki2xQo-H9l797T7133D4mVTlKOlQ/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxoC59zGQ6M3tU6r3ei8_Ji68xd2hlu0pk-J-T3B4xWJSWvvdDaBo_xG_MqRB-hvAn2bw/exec';
 /* ===================================================================== */
 
 const POS = [
@@ -317,10 +317,10 @@ let mode = ls.get('kk_mode') || 'out';
 let filter = 'all';
 let data = { pemasukan:[], pengeluaran:[] };
 try{ const c = JSON.parse(ls.get('kk_cache')); if(c && c.pemasukan && c.pengeluaran) data = c; }catch(e){}
-let mutV = 0, busy = false;
+let mutV = 0, busy = false, pending = 0;
 
 const saveCache = () => ls.set('kk_cache', JSON.stringify(data));
-function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.remove('hidden'); clearTimeout(toast.h); toast.h=setTimeout(()=>t.classList.add('hidden'),2000); }
+function toast(msg, ms=2000){ const t=$('#toast'); t.textContent=msg; t.classList.remove('hidden'); clearTimeout(toast.h); toast.h=setTimeout(()=>t.classList.add('hidden'),ms); }
 
 async function api(params){ const r = await fetch(API_URL + '?' + new URLSearchParams(params)); return r.json(); }
 async function post(body){ const r = await fetch(API_URL, {method:'POST', body: JSON.stringify({role, pin, ...body})}); return r.json(); }
@@ -375,11 +375,17 @@ setInterval(renderToday, 1000);
 
 /* refresh senyap tiap 1 menit */
 async function refresh(){
-  if(busy || !pin || API_URL.startsWith('GANTI')) return;
+  if(busy || pending > 0 || !pin || API_URL.startsWith('GANTI')) return;
   busy = true; const v = mutV;
   try{
     const res = await api({action:'list', role, pin});
-    if(res.ok){ if(v === mutV){ data = {pemasukan:res.pemasukan, pengeluaran:res.pengeluaran}; saveCache(); render(); } }
+    if(res.ok){
+      if(v === mutV && pending === 0){
+        const failed = k => data[k].filter(r => r._fail);
+        data = {pemasukan:[...res.pemasukan, ...failed('pemasukan')], pengeluaran:[...res.pengeluaran, ...failed('pengeluaran')]};
+        saveCache(); render();
+      }
+    }
     else if(res.error === 'PIN salah'){ logout(); $('#loginErr').textContent = 'PIN berubah. Masuk lagi.'; }
   }catch(e){ /* diam saja */ }
   finally{ busy = false; }
@@ -445,10 +451,10 @@ function renderHistory(inn, out){
     html += `<div class="item">
       <div class="ico" style="background:${r.t==='in' ? '#dff3e9' : (p ? p.bg : '#eee')}">${r.t==='in' ? '💰' : (p ? p.e : '🧾')}</div>
       <div><b class="t">${esc(r.Keterangan) || (r.t==='in' ? 'Pemasukan' : esc(r.Pos))}</b>
-        <span class="muted">${esc(String(r.Oleh).split(' ')[0])}${r.t==='out' ? ' · ' + esc(r.Pos) : ''}${pending ? ' · menyimpan…' : ''}</span>
+        <span class="muted">${esc(String(r.Oleh).split(' ')[0])}${r.t==='out' ? ' · ' + esc(r.Pos) : ''}${r._fail ? ' · <span class="over">gagal terkirim</span>' : (pending ? ' · menyimpan…' : '')}</span>
         ${r.t==='out' && r.Struk ? `<div><button class="strukbtn" data-struk="${esc(r.Struk)}" data-title="${esc(r.Keterangan || r.Pos)}">🧾 Lihat struk</button></div>` : ''}</div>
       <div><div class="amt ${r.t==='in'?'in':''}">${r.t==='in'?'+':'−'} ${rp(r.Jumlah)}</div>
-        ${pending ? '' : `<button class="del" data-t="${r.t}" data-id="${esc(r.ID)}">Hapus</button>`}</div>
+        ${r._fail ? `<button class="del retry" data-t="${r.t}" data-id="${esc(r.ID)}" style="color:var(--warn);font-weight:700">Kirim ulang</button><button class="del drop" data-t="${r.t}" data-id="${esc(r.ID)}">Buang</button>` : (pending ? '' : `<button class="del" data-t="${r.t}" data-id="${esc(r.ID)}">Hapus</button>`)}</div>
     </div>`;
   });
   $('#history').innerHTML = html;
@@ -466,20 +472,24 @@ $('#chips').onclick = e => {
 $('#history').onclick = async e => {
   const s = e.target.closest('.strukbtn');
   if(s){ openStruk(s.dataset.struk, s.dataset.title); return; }
+  const rt = e.target.closest('.retry');
+  if(rt){ const k = rt.dataset.t==='in' ? 'pemasukan' : 'pengeluaran'; const row = data[k].find(x => x.ID === rt.dataset.id); if(row) send(k, row); return; }
+  const dp = e.target.closest('.drop');
+  if(dp){ const k = dp.dataset.t==='in' ? 'pemasukan' : 'pengeluaran'; data[k] = data[k].filter(x => x.ID !== dp.dataset.id); saveCache(); render(); return; }
   const b = e.target.closest('.del'); if(!b) return;
   if(!confirm('Hapus catatan ini?')) return;
   const key = b.dataset.t === 'in' ? 'pemasukan' : 'pengeluaran';
   const id = b.dataset.id;
   const backup = data[key].find(r => r.ID === id);
   data[key] = data[key].filter(r => r.ID !== id);
-  mutV++; saveCache(); render(); toast('Catatan dihapus');
+  mutV++; pending++; saveCache(); render(); toast('Catatan dihapus');
   try{
     const res = await post({action:'delete', sheet:key, id});
     if(!res.ok) throw new Error(res.error);
   }catch(err){
     if(backup){ data[key].push(backup); saveCache(); render(); }
     toast('Gagal menghapus, coba lagi');
-  }finally{ mutV++; }
+  }finally{ mutV++; pending--; }
 };
 
 /* ================= TAB & FORM ================= */
@@ -569,24 +579,33 @@ $('#btnSave').onclick = () => {
   const foto = key === 'pengeluaran' ? fotoData : '';
   if(key === 'pengeluaran'){ row.Pos = pos; row.Struk = foto ? tmp : ''; if(foto) fotoCache[tmp] = foto; }
 
-  data[key].push(row); mutV++; saveCache();
+  data[key].push(row); saveCache();
   $('#month').value = tanggal.slice(0,7);
   $('#fKet').value = ''; $('#fJumlah').value = ''; clearFoto();
-  render(); toast(foto ? 'Tersimpan, foto diunggah ✓' : 'Tersimpan ✓');
+  toast(foto ? 'Tersimpan, foto diunggah ✓' : 'Tersimpan ✓');
+  send(key, row);
+};
 
-  post({action:'add', sheet:key, tanggal, jumlah, keterangan:ket, pos, foto})
+/* kirim satu catatan ke server; kalau gagal, catatan TETAP ada dan bisa dikirim ulang */
+function send(key, row){
+  const foto = (key === 'pengeluaran' && row.Struk && fotoCache[row.Struk]) ? fotoCache[row.Struk] : '';
+  row._fail = false; delete row._err;
+  pending++; mutV++; render();
+  post({action:'add', sheet:key, tanggal:row.Tanggal, jumlah:row.Jumlah, keterangan:row.Keterangan, pos:row.Pos || '', foto})
     .then(res => {
       if(!res.ok) throw new Error(res.error || 'gagal');
-      const r = data[key].find(x => x.ID === tmp);
-      if(r){ r.ID = res.id; if(foto){ r.Struk = res.struk || ''; if(res.struk) fotoCache[res.struk] = foto; } }
+      data[key] = data[key].filter(x => !(x.ID === res.id && x !== row));
+      row.ID = res.id;
+      if(foto){ row.Struk = res.struk || ''; if(res.struk) fotoCache[res.struk] = foto; }
       saveCache(); render();
     })
-    .catch(() => {
-      data[key] = data[key].filter(x => x.ID !== tmp); saveCache(); render();
-      toast('Gagal menyimpan, coba input ulang');
+    .catch(err => {
+      row._fail = true; row._err = String(err && err.message || err);
+      saveCache(); render();
+      toast('Belum tercatat: ' + row._err + '. Tekan "Kirim ulang" di Riwayat.', 5000);
     })
-    .finally(() => { mutV++; });
-};
+    .finally(() => { pending--; mutV++; });
+}
 
 /* ================= BOOT ================= */
 if(pin && !API_URL.startsWith('GANTI')){
