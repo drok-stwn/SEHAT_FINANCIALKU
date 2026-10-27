@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#0f3d4a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Keuangan">
 <title>Keuangan Keluarga</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -144,7 +151,14 @@ section{display:grid;gap:14px}
 #viewer .vbar b{font-family:var(--head);font-size:16px}
 #viewer .vbar button{border:1px solid #ffffff55;background:#ffffff1a;color:#fff;border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer}
 #viewer .vbody{flex:1;overflow:auto;display:grid;place-items:start center;padding:0 12px 16px}
-#viewer img{max-width:100%;height:auto;border-radius:10px;background:#fff}
+#viewer .vbody{display:block;text-align:center}
+#viewer img{display:block;width:100%;max-width:680px;height:auto;margin:0 auto;border-radius:10px;background:#fff}
+.install{display:flex;gap:12px;align-items:center;padding:14px 16px;border-radius:var(--r);background:linear-gradient(135deg,#fff7e0,#ffeec2);border:1px solid #f1d58a}
+.install .ic{font-size:26px}
+.install .tx{flex:1;font-size:13.5px;line-height:1.35}
+.install .tx b{display:block;font-family:var(--head);font-size:15px}
+.install button{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;background:var(--brand);color:#fff;min-height:42px}
+.install .x{background:none;color:var(--ink2);font-size:20px;padding:6px 8px;min-height:auto}
 #viewer .msg{color:#cfe0e5;padding:40px 12px;text-align:center}
 
 /* nav */
@@ -202,6 +216,12 @@ nav button[aria-current=page]{color:var(--brand);background:#e3eef2}
     <main id="content">
       <!-- RINGKASAN -->
       <section id="tab-ringkasan">
+        <div class="install hidden" id="install">
+          <div class="ic" aria-hidden="true">📲</div>
+          <div class="tx"><b>Pasang sebagai aplikasi</b><span id="installTx"></span></div>
+          <button id="installBtn" class="hidden">Pasang</button>
+          <button class="x" id="installX" aria-label="Tutup">×</button>
+        </div>
         <div class="card hero">
           <div class="label">Total penghasilan suami + istri</div>
           <div class="total" id="total">Rp 0</div>
@@ -291,7 +311,7 @@ nav button[aria-current=page]{color:var(--brand);background:#e3eef2}
 
 <script>
 /* ====== PENGATURAN: tempel URL Web App dari Apps Script di sini ====== */
-const API_URL = 'https://script.google.com/macros/s/AKfycbxoC59zGQ6M3tU6r3ei8_Ji68xd2hlu0pk-J-T3B4xWJSWvvdDaBo_xG_MqRB-hvAn2bw/exec';
+const API_URL = 'GANTI_DENGAN_URL_WEB_APP_APPS_SCRIPT';
 /* ===================================================================== */
 
 const POS = [
@@ -559,7 +579,9 @@ async function openStruk(id, title){
     if(!res.ok) throw new Error(res.error);
     fotoCache[id] = res.data;
     if(!$('#viewer').classList.contains('hidden')) body.innerHTML = `<img src="${res.data}" alt="Foto struk">`;
-  }catch(err){ body.innerHTML = '<div class="msg">Foto belum bisa dimuat. Coba lagi sebentar lagi.</div>'; }
+  }catch(err){
+    body.innerHTML = '<div class="msg">Foto belum bisa dimuat.<br><small>' + esc(String(err && err.message || err)) + '</small></div>';
+  }
 }
 $('#vClose').onclick = () => $('#viewer').classList.add('hidden');
 document.addEventListener('keydown', e => { if(e.key === 'Escape') $('#viewer').classList.add('hidden'); });
@@ -596,7 +618,11 @@ function send(key, row){
       if(!res.ok) throw new Error(res.error || 'gagal');
       data[key] = data[key].filter(x => !(x.ID === res.id && x !== row));
       row.ID = res.id;
-      if(foto){ row.Struk = res.struk || ''; if(res.struk) fotoCache[res.struk] = foto; }
+      if(foto){
+        row.Struk = res.struk || '';
+        if(res.struk) fotoCache[res.struk] = foto;
+        else toast('Pengeluaran tercatat, tetapi foto belum tersimpan: ' + (res.fotoError || 'Code.gs versi terbaru belum di-deploy'), 7000);
+      }
       saveCache(); render();
     })
     .catch(err => {
@@ -606,6 +632,35 @@ function send(key, row){
     })
     .finally(() => { pending--; mutV++; });
 }
+
+/* ================= PWA: pasang sebagai aplikasi ================= */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+let installEvt = null;
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function showInstall(){
+  if(isStandalone() || ls.get('kk_inst') === '1') return;
+  if(installEvt){
+    $('#installTx').textContent = ' Buka langsung dari layar utama HP, tampil penuh seperti aplikasi.';
+    $('#installBtn').classList.remove('hidden');
+  }else if(isIOS){
+    $('#installTx').textContent = ' Ketuk tombol Bagikan (kotak dengan panah ke atas), lalu pilih "Tambahkan ke Layar Utama".';
+    $('#installBtn').classList.add('hidden');
+  }else return;
+  $('#install').classList.remove('hidden');
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; showInstall(); });
+window.addEventListener('appinstalled', () => { $('#install').classList.add('hidden'); ls.set('kk_inst','1'); });
+$('#installBtn').onclick = async () => {
+  if(!installEvt) return;
+  installEvt.prompt();
+  try{ await installEvt.userChoice; }catch(e){}
+  installEvt = null; $('#install').classList.add('hidden');
+};
+$('#installX').onclick = () => { ls.set('kk_inst','1'); $('#install').classList.add('hidden'); };
+showInstall();
 
 /* ================= BOOT ================= */
 if(pin && !API_URL.startsWith('GANTI')){
