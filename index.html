@@ -170,8 +170,35 @@ nav button{background:none;border:0;padding:7px 4px;font-weight:600;font-size:12
 nav button svg{width:22px;height:22px}
 nav button[aria-current=page]{color:var(--brand);background:#e3eef2}
 #toast{position:fixed;left:50%;bottom:calc(94px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:99px;font-size:14px;z-index:9;white-space:nowrap}
-@media (max-width:380px){.dn{grid-template-columns:1fr;justify-items:center}.hero .total{font-size:32px}}
-@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+@media (max-width:440px){.dn{grid-template-columns:146px 1fr;gap:12px}.donut{width:146px;height:146px}.donut .mid{padding:0 26px}.donut .mid b{font-size:13.5px}.legend div{font-size:12.8px;gap:6px}.legend{gap:7px}}
+.mini b,.stat b{font-size:clamp(14px,4.4vw,18px);white-space:nowrap}
+.mini,.stat{min-width:0}
+@media (max-width:380px){.dn{grid-template-columns:1fr;justify-items:center}.donut{width:168px;height:168px}.hero .total{font-size:32px}}
+/* donat: efek hanya di layar sentuh (HP) */
+.donut .arc{transition:stroke-width .25s ease,opacity .25s ease}
+.donut .mid{pointer-events:none}
+.donut .mid small{font-size:11px;color:var(--ink2);font-weight:600;min-height:14px}
+.legend .lg{border-radius:9px;padding:3px 6px;margin:-3px -6px;transition:background .2s}
+.touch .legend .lg{cursor:pointer}
+.touch .donut .arc{cursor:pointer}
+.legend .lg.on{background:#e9f1f4;font-weight:600}
+.touch .donut.play{animation:dpop .75s cubic-bezier(.2,.9,.3,1.15) both}
+.touch .donut.play .arc{animation:dsweep .95s cubic-bezier(.22,.8,.3,1) both;animation-delay:calc(var(--i) * .11s)}
+.touch .donut.play .track{animation:dfade .5s ease both}
+@keyframes dsweep{from{stroke-dasharray:0 100}to{stroke-dasharray:var(--len) var(--rest)}}
+@keyframes dfade{from{opacity:0}to{opacity:1}}
+@keyframes dpop{from{transform:scale(.86) rotate(-14deg);opacity:.15}to{transform:none;opacity:1}}
+
+/* dialog konfirmasi */
+#dlg{position:fixed;inset:0;z-index:30;background:#06161b99;display:grid;place-items:center;padding:24px}
+#dlg .dbox{background:#fff;border-radius:22px;padding:24px 22px 20px;width:100%;max-width:340px;text-align:center;box-shadow:0 20px 50px -10px #000a}
+#dlg .dico{width:54px;height:54px;border-radius:16px;background:#fde8e1;display:grid;place-items:center;font-size:26px;margin:0 auto 12px}
+#dlg h3{font-size:19px;margin-bottom:6px}
+#dlg p{color:var(--ink2);font-size:14px;margin-bottom:18px;word-break:break-word}
+#dlg .dbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#dlg button{border-radius:12px;padding:13px;font-weight:700;cursor:pointer;min-height:48px;border:1.5px solid var(--line);background:#fff}
+#dlg #dlgYes{background:var(--warn);border-color:var(--warn);color:#fff}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}.touch .donut.play,.touch .donut.play .arc,.touch .donut.play .track{animation:none}}
 </style>
 </head>
 <body>
@@ -241,7 +268,7 @@ nav button[aria-current=page]{color:var(--brand);background:#e3eef2}
           <h2>Pembagian gaji</h2>
           <div class="dn">
             <div class="donut"><svg viewBox="0 0 40 40" id="donut" aria-hidden="true"></svg>
-              <div class="mid"><span>Alokasi</span><b id="donutTotal">Rp 0</b></div></div>
+              <div class="mid"><span id="donutLabel">Alokasi</span><b id="donutTotal">Rp 0</b><small id="donutSub"></small></div></div>
             <div class="legend" id="legend"></div>
           </div>
         </div>
@@ -304,6 +331,14 @@ nav button[aria-current=page]{color:var(--brand);background:#e3eef2}
     <button data-tab="catat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Catat</button>
     <button data-tab="riwayat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>Riwayat</button>
   </div></nav>
+</div>
+<div id="dlg" class="hidden" role="alertdialog" aria-modal="true" aria-labelledby="dlgTitle">
+  <div class="dbox">
+    <div class="dico" aria-hidden="true">🗑️</div>
+    <h3 id="dlgTitle">Yakin ingin menghapus ini?</h3>
+    <p id="dlgText"></p>
+    <div class="dbtns"><button id="dlgNo">Batal</button><button id="dlgYes">Ya, hapus</button></div>
+  </div>
 </div>
 <div id="viewer" class="hidden" role="dialog" aria-label="Foto struk">
   <div class="vbar"><b id="vTitle">Struk</b><button id="vClose">Tutup</button></div>
@@ -433,6 +468,29 @@ async function refresh(){
 setInterval(refresh, 60000);
 document.addEventListener('visibilitychange', () => { if(!document.hidden){ renderToday(); refresh(); } });
 
+/* ================= EFEK DONAT (hanya HP / layar sentuh) ================= */
+const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+if(isTouch) document.body.classList.add('touch');
+let selPos = null;
+function playDonut(){
+  if(!isTouch) return;
+  const d = document.querySelector('.donut'); if(!d) return;
+  d.classList.remove('play'); void d.offsetWidth; d.classList.add('play');
+  clearTimeout(playDonut.h); playDonut.h = setTimeout(() => d.classList.remove('play'), 1900);
+}
+function pickPos(i){
+  selPos = (selPos === i) ? null : i;
+  try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){}
+  render();
+}
+if(isTouch){
+  $('#donut').addEventListener('click', e => {
+    const a = e.target.closest('.arc');
+    if(a) pickPos(+a.dataset.i); else if(selPos !== null){ selPos = null; render(); }
+  });
+  $('#legend').addEventListener('click', e => { const r = e.target.closest('.lg'); if(r) pickPos(+r.dataset.i); });
+}
+
 /* ================= RENDER ================= */
 function render(){
   const m = $('#month').value || periodKey(todayISO());
@@ -448,15 +506,24 @@ function render(){
   $('#outAll').textContent = rp(spent);
   $('#sisaAll').textContent = rp(sisa);
   $('#sisaBox').classList.toggle('neg', sisa < 0);
-  $('#donutTotal').textContent = rp(total);
+  if(selPos !== null && POS[selPos]){
+    $('#donutLabel').textContent = POS[selPos].k;
+    $('#donutTotal').textContent = rp(total * POS[selPos].p);
+    $('#donutSub').textContent = fmtPct(POS[selPos].p) + ' dari gaji';
+  }else{
+    $('#donutLabel').textContent = 'Alokasi';
+    $('#donutTotal').textContent = rp(total);
+    $('#donutSub').textContent = '';
+  }
 
   let cum = 0; const GAP = 1.4;
   $('#donut').innerHTML = '<g transform="rotate(-90 20 20)"><circle class="track" cx="20" cy="20" r="16" pathLength="100"/>' +
-    POS.map(p => {
+    POS.map((p, i) => {
       const len = p.p*100 - GAP, off = -(cum + GAP/2); cum += p.p*100;
-      return `<circle class="arc" cx="20" cy="20" r="16" pathLength="100" stroke="${p.c}" stroke-dasharray="${len} ${100-len}" stroke-dashoffset="${off}"/>`;
+      const on = selPos === i, dim = selPos !== null && !on;
+      return `<circle class="arc" data-i="${i}" cx="20" cy="20" r="16" pathLength="100" stroke="${p.c}" stroke-dasharray="${len} ${100-len}" stroke-dashoffset="${off}" style="--i:${i};--len:${len};--rest:${100-len};stroke-width:${on ? 6.4 : 4.6};opacity:${dim ? .3 : 1}"/>`;
     }).join('') + '</g>';
-  $('#legend').innerHTML = POS.map(p => `<div><i style="background:${p.c}"></i>${p.k}<em>${fmtPct(p.p)}</em></div>`).join('');
+  $('#legend').innerHTML = POS.map((p, i) => `<div class="lg ${selPos === i ? 'on' : ''}" data-i="${i}"><i style="background:${p.c}"></i>${p.k}<em>${fmtPct(p.p)}</em></div>`).join('');
 
   $('#posList').innerHTML = POS.map(p => {
     const alok = total * p.p;
@@ -509,6 +576,23 @@ $('#chips').onclick = e => {
   render();
 };
 
+/* dialog konfirmasi (pengganti confirm bawaan browser) */
+function askConfirm(title, text, yes){
+  return new Promise(resolve => {
+    $('#dlgTitle').textContent = title; $('#dlgText').textContent = text; $('#dlgYes').textContent = yes || 'Ya, hapus';
+    const d = $('#dlg'); d.classList.remove('hidden'); $('#dlgNo').focus();
+    const onKey = e => { if(e.key === 'Escape') close(false); };
+    function close(v){
+      d.classList.add('hidden'); d.onclick = null; $('#dlgYes').onclick = null; $('#dlgNo').onclick = null;
+      document.removeEventListener('keydown', onKey); resolve(v);
+    }
+    document.addEventListener('keydown', onKey);
+    $('#dlgYes').onclick = () => close(true);
+    $('#dlgNo').onclick = () => close(false);
+    d.onclick = e => { if(e.target === d) close(false); };
+  });
+}
+
 /* hapus: langsung hilang, server menyusul */
 $('#history').onclick = async e => {
   const s = e.target.closest('.strukbtn');
@@ -516,12 +600,17 @@ $('#history').onclick = async e => {
   const rt = e.target.closest('.retry');
   if(rt){ const k = rt.dataset.t==='in' ? 'pemasukan' : 'pengeluaran'; const row = data[k].find(x => x.ID === rt.dataset.id); if(row) send(k, row); return; }
   const dp = e.target.closest('.drop');
-  if(dp){ const k = dp.dataset.t==='in' ? 'pemasukan' : 'pengeluaran'; data[k] = data[k].filter(x => x.ID !== dp.dataset.id); saveCache(); render(); return; }
+  if(dp){
+    const k = dp.dataset.t==='in' ? 'pemasukan' : 'pengeluaran';
+    if(!await askConfirm('Yakin ingin membuang ini?', 'Catatan ini belum terkirim dan akan dibuang dari HP.', 'Ya, buang')) return;
+    data[k] = data[k].filter(x => x.ID !== dp.dataset.id); saveCache(); render(); return;
+  }
   const b = e.target.closest('.del'); if(!b) return;
-  if(!confirm('Hapus catatan ini?')) return;
   const key = b.dataset.t === 'in' ? 'pemasukan' : 'pengeluaran';
   const id = b.dataset.id;
   const backup = data[key].find(r => r.ID === id);
+  const nm = backup ? ((backup.Keterangan || (key === 'pemasukan' ? 'Pemasukan' : posName(backup.Pos))) + ' · ' + rp(backup.Jumlah)) : 'Catatan ini';
+  if(!await askConfirm('Yakin ingin menghapus ini?', nm, 'Ya, hapus')) return;
   data[key] = data[key].filter(r => r.ID !== id);
   mutV++; pending++; saveCache(); render(); toast('Catatan dihapus');
   try{
@@ -540,6 +629,7 @@ function setTab(t){
   document.querySelectorAll('nav button').forEach(b => b.toggleAttribute('aria-current', b.dataset.tab === t));
   document.querySelectorAll('nav button').forEach(b => { if(b.dataset.tab === t) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
   window.scrollTo(0,0);
+  if(t === 'ringkasan') playDonut();
 }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
 
